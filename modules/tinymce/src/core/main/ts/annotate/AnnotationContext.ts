@@ -1,4 +1,5 @@
-import { SugarElement, SugarNode, SugarText, Traverse } from '@ephox/sugar';
+import { Arr } from '@ephox/katamari';
+import { Selectors, SugarElement, SugarNode, SugarText, Traverse } from '@ephox/sugar';
 
 import Editor from '../api/Editor';
 import { isCaretNode } from '../fmt/FormatContainer';
@@ -13,8 +14,16 @@ export const enum ChildContext {
   Existing = 'existing',
   InvalidChild = 'invalid-child',
   Caret = 'caret',
-  Valid = 'valid'
+  Valid = 'valid',
+  // Apply annotation directly on elem
+  ValidBlock = 'valid-block',
+  // Wrap elem in its own span
+  ValidWrapBlock = 'valid-wrap-block'
 }
+
+// const validBlocks = 'img video audio iframe pre[class*=language-][contenteditable="false"]'.split(' ');
+const validBlocks = 'pre[class*=language-][contenteditable="false"]'.split(' ');
+const validWrapBlocks = 'img video audio iframe span.mce-preview-object'.split(' ');
 
 const isZeroWidth = (elem: SugarElement<Node>): boolean =>
   SugarNode.isText(elem) && SugarText.get(elem) === ZWSP;
@@ -31,6 +40,11 @@ const context = (editor: Editor, elem: SugarElement, wrapName: string, nodeName:
       return ChildContext.Existing;
     } else if (isCaretNode(elem.dom)) {
       return ChildContext.Caret;
+    } else if (Arr.exists(validBlocks, (selector) => Selectors.is(elem, selector))) {
+      return ChildContext.ValidBlock;
+      // return ChildContext.ValidWrapBlock;
+    } else if (Arr.exists(validWrapBlocks, (selector) => Selectors.is(elem, selector))) {
+      return ChildContext.ValidWrapBlock;
     } else if (!FormatUtils.isValid(editor, wrapName, nodeName) || !FormatUtils.isValid(editor, SugarNode.name(parent), wrapName)) {
       return ChildContext.InvalidChild;
     } else {

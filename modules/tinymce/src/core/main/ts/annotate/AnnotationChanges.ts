@@ -46,6 +46,7 @@ const setup = (editor: Editor, registry: AnnotationsRegistry): AnnotationChanges
     withCallbacks(name, (data) => {
       Arr.each(data.listeners, (f) => f(true, name, {
         uid,
+        // TODO: May have to check for duplicates here since 'pre' is duplicated when selected so shows up twice in the list
         nodes: Arr.map(elements, (elem) => elem.dom)
       }));
     });

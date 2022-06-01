@@ -50,6 +50,7 @@ const findMarkers = (editor: Editor, uid: string): Array<SugarElement<Element>> 
 const findAll = (editor: Editor, name: string): Record<string, SugarElement[]> => {
   const body = SugarElement.fromDom(editor.getBody());
   const markers = SelectorFilter.descendants(body, `[${Markings.dataAnnotation()}="${name}"]`);
+  console.log(markers);
   const directory: Record<string, SugarElement[]> = { };
   Arr.each(markers, (m) => {
     const uid = Attribute.get(m, Markings.dataAnnotationId());

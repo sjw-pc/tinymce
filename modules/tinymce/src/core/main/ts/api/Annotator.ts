@@ -1,11 +1,11 @@
 import { Arr, Obj, Optional } from '@ephox/katamari';
-import { Remove } from '@ephox/sugar';
+import { Remove, SugarNode } from '@ephox/sugar';
 
 import * as AnnotationChanges from '../annotate/AnnotationChanges';
 import * as AnnotationFilter from '../annotate/AnnotationFilter';
 import { create } from '../annotate/AnnotationsRegistry';
 import { findAll, identify } from '../annotate/Identification';
-import { annotateWithBookmark, Decorator, DecoratorData } from '../annotate/Wrapping';
+import { annotateWithBookmark, Decorator, DecoratorData, removeDirectAnnotation } from '../annotate/Wrapping';
 import Editor from './Editor';
 
 export type AnnotationListenerApi = AnnotationChanges.AnnotationListener;
@@ -83,7 +83,14 @@ const Annotator = (editor: Editor): Annotator => {
     remove: (name: string): void => {
       const bookmark = editor.selection.getBookmark();
       identify(editor, Optional.some(name)).each(({ elements }) => {
-        Arr.each(elements, Remove.unwrap);
+        Arr.each(elements, (element) => {
+          // console.log(elements);
+          if (SugarNode.isTag('span')(element)) {
+            Remove.unwrap(element);
+          } else {
+            removeDirectAnnotation(element);
+          }
+        });
       });
       editor.selection.moveToBookmark(bookmark);
     },
@@ -96,7 +103,17 @@ const Annotator = (editor: Editor): Annotator => {
      */
     removeAll: (name: string): void => {
       const bookmark = editor.selection.getBookmark();
-      Obj.each(findAll(editor, name), (spans, _) => Arr.each(spans, Remove.unwrap));
+      Obj.each(findAll(editor, name), (elements, _) => {
+        console.log(elements);
+        Arr.each(elements, (element) => {
+          // console.log(elements);
+          if (SugarNode.isTag('span')(element)) {
+            Remove.unwrap(element);
+          } else {
+            removeDirectAnnotation(element);
+          }
+        });
+      });
       editor.selection.moveToBookmark(bookmark);
     },
 
