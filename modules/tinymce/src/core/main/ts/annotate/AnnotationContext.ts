@@ -22,8 +22,11 @@ export const enum ChildContext {
 }
 
 // const validBlocks = 'img video audio iframe pre[class*=language-][contenteditable="false"]'.split(' ');
-const validBlocks = 'pre[class*=language-][contenteditable="false"]'.split(' ');
-const validWrapBlocks = 'img video audio iframe span.mce-preview-object'.split(' ');
+// const validBlocks = 'pre[class*=language-][contenteditable="false"]'.split(' ');
+// const validWrapBlocks = 'img video audio iframe span.mce-preview-object'.split(' ');
+// Testing validBlocks. Real list is above
+const validBlocks = 'pre[class*=language-][contenteditable="false"] figure.image'.split(' ');
+const validWrapBlocks = 'img video audio'.split(' ');
 
 const isZeroWidth = (elem: SugarElement<Node>): boolean =>
   SugarNode.isText(elem) && SugarText.get(elem) === ZWSP;

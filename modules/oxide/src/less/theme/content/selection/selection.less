@@ -22,7 +22,7 @@
   object[data-mce-selected],
   embed[data-mce-selected],
   table[data-mce-selected] {
-    outline: @object-block-selected-outline-width solid @object-block-selected-color;
+    outline: @object-block-selected-outline-width solid @object-block-selected-color !important;
   }
 
   hr[data-mce-selected] {
@@ -41,7 +41,7 @@
 
   *[contentEditable=false][data-mce-selected] {
     cursor: not-allowed;
-    outline: @object-block-selected-outline-width solid @object-block-selected-color;
+    outline: @object-block-selected-outline-width solid @object-block-selected-color !important;
   }
 
   &.mce-content-readonly {

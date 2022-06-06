@@ -1,4 +1,4 @@
-import { UiFinder } from '@ephox/agar';
+import { UiFinder, Cursors } from '@ephox/agar';
 import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr } from '@ephox/katamari';
 import { Value } from '@ephox/sugar';
@@ -7,12 +7,13 @@ import { assert } from 'chai';
 
 import Editor from 'tinymce/core/api/Editor';
 import CodeSamplePlugin from 'tinymce/plugins/codesample/Plugin';
+import MediaPlugin from 'tinymce/plugins/media/Plugin';
 
 import { annotate, assertHtmlContent } from '../../module/test/AnnotationAsserts';
 
 describe('browser.tinymce.core.annotate.AnnotateBlocksTest', () => {
   const hook = TinyHooks.bddSetupLight<Editor>({
-    plugins: 'codesample',
+    plugins: 'codesample media',
     base_url: '/project/tinymce/js/tinymce',
     setup: (ed: Editor) => {
       ed.on('init', () => {
@@ -26,10 +27,90 @@ describe('browser.tinymce.core.annotate.AnnotateBlocksTest', () => {
         });
       });
     }
-  }, [ CodeSamplePlugin ], true);
+  }, [ CodeSamplePlugin, MediaPlugin ], true);
+
+  const expectedAnnotationAttrs = 'data-test-anything="one-block" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation"';
+
+  const selectionPath = (startPath: number[], soffset: number, finishPath: number[], foffset: number): Cursors.CursorPath => ({
+    startPath,
+    soffset,
+    finishPath,
+    foffset
+  });
+
+  const testAnnotationOnSelection = (
+    editor: Editor,
+    html: string,
+    setSelection: (editor: Editor) => void,
+    expectedHtml: string[],
+    expectedSelection: Cursors.CursorPath,
+    expectedAnnotationCount: number
+  ): void => {
+    editor.setContent(html);
+    setSelection(editor);
+    annotate(editor, 'test-annotation', 'test-uid', { anything: 'one-block' });
+    TinyAssertions.assertContentPresence(editor, {
+      '.mce-annotation': expectedAnnotationCount
+    });
+    assertHtmlContent(editor, expectedHtml);
+    TinyAssertions.assertSelection(editor, expectedSelection.startPath, expectedSelection.soffset, expectedSelection.finishPath, expectedSelection.foffset);
+  };
+
+  const testDirectSelectionAnnotation = (
+    editor: Editor,
+    html: string,
+    selector: string,
+    expectedHtml: string[],
+    expectedSelection: Cursors.CursorPath,
+    expectedAnnotationCount: number = 1
+  ): void =>
+    testAnnotationOnSelection(
+      editor,
+      `<p>Before</p>${html}<p>After</p>`,
+      () => TinySelections.select(editor, selector, []),
+      [
+        '<p>Before</p>',
+        ...expectedHtml,
+        '<p>After</p>'
+      ],
+      expectedSelection,
+      expectedAnnotationCount
+    );
+
+  const testAllContentSelectionAnnotation = (
+    editor: Editor,
+    html: string,
+    expectedHtml: string[],
+    expectedSelection: Cursors.CursorPath,
+    expectedAnnotationCount: number
+  ): void =>
+    testAnnotationOnSelection(
+      editor,
+      `<p>Before</p>${html}<p>After</p>`,
+      () => editor.execCommand('SelectAll'),
+      [
+        `<p><span ${expectedAnnotationAttrs}>Before</span></p>`,
+        ...expectedHtml,
+        `<p><span ${expectedAnnotationAttrs}>After</span></p>`,
+      ],
+      expectedSelection,
+      expectedAnnotationCount
+    );
+
+  // const testDirectSelectionAnnotation = (editor: Editor, html: string, selector: string, expectedHtml: string, expectedSelection: Cursors.CursorPath): void => {
+  //   editor.setContent(`<p>Before</p>${html}<p>After</p>`);
+  //   TinySelections.select(editor, selector, []);
+  //   annotate(editor, 'test-annotation', 'test-uid', { anything: 'one-block' });
+  //   assertHtmlContent(editor, [
+  //     '<p>Before</p>',
+  //     expectedHtml,
+  //     '<p>After</p>'
+  //   ]);
+  //   TinyAssertions.assertSelection(editor, expectedSelection.startPath, expectedSelection.soffset, expectedSelection.finishPath, expectedSelection.foffset);
+  // };
 
   context('Annotating inline media blocks', () => {
-    Arr.each([ 'img', 'audio', 'video' ], (blockName) => {
+    Arr.each([ 'img' ], (blockName) => {
       context(blockName, () => {
         it('TINY-8698: should annotate inline block when directly selected', () => {
           const editor = hook.editor();
@@ -65,7 +146,154 @@ describe('browser.tinymce.core.annotate.AnnotateBlocksTest', () => {
             `<p>${expectedAnnotationSpanHtml}After image</span></p>`
           ]);
 
-          TinyAssertions.assertSelection(editor, [ ], 0, [ ], 3);
+          TinyAssertions.assertSelection(editor, [], 0, [], 3);
+        });
+      });
+    });
+  });
+
+  context('image with caption', () => {
+    // Test figure and caption can be annotated
+    // const pInsertImage = async (editor: Editor, src: string, caption: boolean = false) => {
+    //   editor.execCommand('mceImage');
+    //   const dialog = await TinyUiActions.pWaitForDialog(editor);
+    //   setInputValue('label.tox-label:contains("Source")', '');
+    //   Mouse.clickOn(dialog, 'label:contains("Show caption") input[type="checkbox"]');
+    //   TinyUiActions.submitDialog(editor);
+    // };
+    const imgHtml = `<img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" alt="">`;
+
+    it('TINY-8698: should annotate figure when captioned image is directly selected', () => {
+      testDirectSelectionAnnotation(
+        hook.editor(),
+        `<figure class="image">${imgHtml}<figcaption>x</figcaption></figure>`,
+        'figure',
+        [ `<figure class="image" ${expectedAnnotationAttrs}>${imgHtml}<figcaption>x</figcaption></figure>` ],
+        selectionPath([], 1, [], 2),
+        1
+      );
+    });
+
+    it('TINY-8698: should annotate figure when captioned image is part of selection', () => {
+      testAllContentSelectionAnnotation(
+        hook.editor(),
+        `<figure class="image">${imgHtml}<figcaption>x</figcaption></figure>`,
+        [ `<figure class="image" ${expectedAnnotationAttrs}>${imgHtml}<figcaption>x</figcaption></figure>` ],
+        selectionPath([], 0, [], 3),
+        3
+      );
+    });
+
+    it('TINY-8698: Should be able to annotate both figure and caption text', () => {
+      const editor = hook.editor();
+      testDirectSelectionAnnotation(
+        hook.editor(),
+        `<figure class="image">${imgHtml}<figcaption>x</figcaption></figure>`,
+        'figure',
+        [ `<figure class="image" ${expectedAnnotationAttrs}>${imgHtml}<figcaption>x</figcaption></figure>` ],
+        selectionPath([], 1, [], 2),
+        1
+      );
+
+      testAnnotationOnSelection(
+        editor,
+        editor.getContent(),
+        () => TinySelections.setCursor(editor, [ 1, 1, 0 ], 0),
+        [
+          `<p>Before</p>`,
+          `<figure class="image" ${expectedAnnotationAttrs}>${imgHtml}<figcaption><span ${expectedAnnotationAttrs}>x</span></figcaption></figure>`,
+          `<p>After</p>`
+        ],
+        selectionPath([ 1 ], 1, [ 1 ], 2),
+        2
+      );
+    });
+
+    // TODO: Test removing caption/figure from image using image dialog
+  });
+
+  context('media', () => {
+    const iframeHtml = '<iframe src="https://www.youtube.com/embed/8aGhZQkoFbQ" width="560" height="314" allowfullscreen="allowfullscreen"></iframe>';
+    const audioHtml = '<audio src="https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3" controls="controls"></audio>';
+    const videoHtml = '<video controls="controls" width="300" height="150"><source src="https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4" type="video/mp4"></video>';
+
+    Arr.each([
+      { label: 'iframe (YouTube video)', selector: 'iframe', html: iframeHtml },
+      { label: 'audio', selector: 'audio', html: audioHtml },
+      { label: 'video', selector: 'video', html: videoHtml }
+    ], ({ label, selector, html }) => {
+      context(label, () => {
+        it('should have wrapping mce-preview-object span', () => {
+          const editor = hook.editor();
+          editor.setContent(`<p>${html}</p>`);
+          TinyAssertions.assertContentPresence(editor, {
+            'span.mce-preview-object': 1
+          });
+        });
+
+        it('TINY-8698: should apply annotation span around preview span when directly selected', () => {
+          const editor = hook.editor();
+          editor.setContent(`<p>Before</p><p>before${html}after</p><p>After</p>`);
+          TinySelections.select(editor, 'span.mce-preview-object', []);
+          annotate(editor, 'test-annotation', 'test-uid', { anything: 'one-block' });
+          assertHtmlContent(editor, [
+            '<p>Before</p>',
+            '<p>before' +
+            '<span data-test-anything="one-block" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation">' +
+            `<span contenteditable="false" data-mce-object="${selector}">` +
+            html +
+            '<span class="mce-shim"></span>' +
+            '</span>' +
+            '</span>' +
+            'after</p>',
+            '<p>After</p>'
+          ]);
+
+          TinyAssertions.assertSelection(editor, [ 1, 1 ], 0, [ 1 ], 2);
+        });
+
+        it('TINY-8698: should apply annotation span around all paragraph content when all content is selected', () => {
+          const editor = hook.editor();
+          const expectedAnnotationAttrs = 'data-test-anything="all-content" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation"';
+          const expectedAnnotationSpan = `<span ${expectedAnnotationAttrs}>`;
+
+          editor.setContent(`<p>Before</p><p>before${html}after</p><p>After</p>`);
+          editor.execCommand('SelectAll');
+          annotate(editor, 'test-annotation', 'test-uid', { anything: 'all-content' });
+          assertHtmlContent(editor, [
+            `<p>${expectedAnnotationSpan}Before</span></p>`,
+            `<p>${expectedAnnotationSpan}before` +
+            `<span contenteditable="false" data-mce-object="${selector}">` +
+            html +
+            `<span class="mce-shim"></span>` +
+            `</span>` +
+            `after</span></p>`,
+            `<p>${expectedAnnotationSpan}After</span></p>`,
+          ]);
+
+          TinyAssertions.assertSelection(editor, [], 0, [], 3);
+        });
+
+        it('TINY-8698: should apply annotation span around selected content in paragraph', () => {
+          const editor = hook.editor();
+          const expectedAnnotationAttrs = 'data-test-anything="all-content" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation"';
+          const expectedAnnotationSpan = `<span ${expectedAnnotationAttrs}>`;
+
+          editor.setContent(`<p>Before</p><p>before${html}after</p><p>After</p>`);
+          TinySelections.setRawSelection(editor, [ 1, 0 ], 3, [ 1, 2 ], 3);
+          annotate(editor, 'test-annotation', 'test-uid', { anything: 'all-content' });
+          assertHtmlContent(editor, [
+            `<p>Before</p>`,
+            `<p>bef${expectedAnnotationSpan}ore` +
+            `<span contenteditable="false" data-mce-object="${selector}">` +
+            html +
+            `<span class="mce-shim"></span>` +
+            `</span>` +
+            `aft</span>er</p>`,
+            `<p>After</p>`,
+          ]);
+
+          TinyAssertions.assertSelection(editor, [ 1 ], 1, [ 1 ], 2);
         });
       });
     });
@@ -243,32 +471,35 @@ describe('browser.tinymce.core.annotate.AnnotateBlocksTest', () => {
       TinyAssertions.assertCursor(editor, [ 2, 0 ], 1);
     });
 
-    it('TINY-8698: should fire `annotationChange` API callback when annotated codesample is selected', async () => {
-      const editor = hook.editor();
-      const expectedAnnotationAttrs = 'data-test-anything="all-content" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation"';
-      const expectedAnnotationSpan = `<span ${expectedAnnotationAttrs}>`;
-      let callbackFireCount = 0;
-      editor.annotator.annotationChanged('test-annotation', (state, name, data) => {
-        console.log(state, name, data);
-        callbackFireCount++;
-      });
+    // it('TINY-8698: should fire `annotationChange` API callback when annotated codesample is selected', async () => {
+    //   const editor = hook.editor();
+    //   const expectedAnnotationAttrs = 'data-test-anything="all-content" data-mce-annotation="test-annotation" data-mce-annotation-uid="test-uid" class="mce-annotation"';
+    //   const expectedAnnotationSpan = `<span ${expectedAnnotationAttrs}>`;
+    //   let callbackFireCount = 0;
+    //   editor.annotator.annotationChanged('test-annotation', (state, name, data) => {
+    //     console.log(state, name, data);
+    //     assert.isTrue(state);
+    //     assert.equal(name, 'test-annotation');
+    //     // assert.deepEqual(data, { });
+    //     callbackFireCount++;
+    //   });
 
-      editor.setContent('<p>beforeafter</p>');
-      TinySelections.setCursor(editor, [ 0, 0 ], 'before'.length);
-      await pInsertCodeSample(editor, 'test');
-      editor.execCommand('SelectAll');
-      annotate(editor, 'test-annotation', 'test-uid', { anything: 'all-content' });
-      assertHtmlContent(editor, [
-        `<p>${expectedAnnotationSpan}before</span>`,
-        `<pre class="language-markup" contenteditable="false" ${expectedAnnotationAttrs}>test</pre>`,
-        `<p>${expectedAnnotationSpan}after</span>`,
-      ]);
-      TinyAssertions.assertSelection(editor, [], 0, [], 3);
+    //   editor.setContent('<p>beforeafter</p>');
+    //   TinySelections.setCursor(editor, [ 0, 0 ], 'before'.length);
+    //   await pInsertCodeSample(editor, 'test');
+    //   editor.execCommand('SelectAll');
+    //   annotate(editor, 'test-annotation', 'test-uid', { anything: 'all-content' });
+    //   assertHtmlContent(editor, [
+    //     `<p>${expectedAnnotationSpan}before</span>`,
+    //     `<pre class="language-markup" contenteditable="false" ${expectedAnnotationAttrs}>test</pre>`,
+    //     `<p>${expectedAnnotationSpan}after</span>`,
+    //   ]);
+    //   TinyAssertions.assertSelection(editor, [], 0, [], 3);
 
-      // Make sure updating the codesample doesnt' affect anything
-      TinySelections.select(editor, 'pre', []);
-      assert.equal(callbackFireCount, 1);
-    });
+    //   // Make sure updating the codesample doesnt' affect anything
+    //   TinySelections.select(editor, 'pre', []);
+    //   assert.equal(callbackFireCount, 1);
+    // });
 
     it('TINY-8698: should annotate `pre` children if not the exact same as codesample structure', () => {
       const editor = hook.editor();
@@ -318,7 +549,7 @@ describe('browser.tinymce.core.annotate.AnnotateBlocksTest', () => {
         `<p>${expectedAnnotationSpanHtml}After hr</span></p>`
       ]);
 
-      TinyAssertions.assertSelection(editor, [ ], 0, [ ], 3);
+      TinyAssertions.assertSelection(editor, [], 0, [], 3);
     });
   });
 });
