@@ -25,7 +25,20 @@ export const enum ChildContext {
 // const validBlocks = 'pre[class*=language-][contenteditable="false"]'.split(' ');
 // const validWrapBlocks = 'img video audio iframe span.mce-preview-object'.split(' ');
 // Testing validBlocks. Real list is above
-const validBlocks = 'pre[class*=language-][contenteditable="false"] figure.image'.split(' ');
+// TODO: Should we add something to annotator API so direct blocks can be registered
+const validBlocks = [
+  // Codesample plugin
+  'pre[class*=language-][contenteditable="false"]',
+  // Image plugin - captioned image
+  'figure.image',
+  // Mediaembed plugin
+  'div[data-ephox-embed-iri]',
+  // Pageembed plugin
+  'div.tiny-pageembed',
+  // Tableofcontents plugin
+  // TODO: This will not always work as class can be specified via tableofcontents_class option
+  'div.mce-toc'
+];
 const validWrapBlocks = 'img video audio'.split(' ');
 
 const isZeroWidth = (elem: SugarElement<Node>): boolean =>
